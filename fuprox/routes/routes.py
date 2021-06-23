@@ -20,7 +20,8 @@ from fuprox.models.models import User, Company, Branch, Service, Help, BranchSch
     MpesaSchema, Booking, BookingSchema, ImageCompanySchema, Teller, TellerSchema, ServiceOffered, Icon, \
     PhraseSchema, Phrase, ServiceOfferedSchema, VideoSchema, Video, ResetOption, ResetOptionSchema, \
     TellerBooking
-from fuprox.others.utility import email, get_all_departments, get_ip, create_department, bind_service_to_dept
+from fuprox.others.utility import email, get_all_departments, get_ip, create_department, bind_service_to_dept, \
+    get_service_dept,unbind_dept_to_service
 from fuprox.others.utility import reverse, add_teller, create_service, upload_video, get_single_video, get_all_videos, \
     get_active_videos, toggle_status, upload_link, delete_video, save_icon_to_service, has_vowels
 import socket, timeago, pytz
@@ -1167,9 +1168,11 @@ def edit_branch(id):
     services = ServiceOffered.query.all()
     icons = Icon.query.all()
     services_offered = ServiceOffered.query.all()
-
+    departments = get_all_departments()
     # this teller
     this_service = ServiceOffered.query.get(id)
+    this_service_dept = get_service_dept(this_service.unique_id)
+    print(this_service_dept)
     # setting form inputs to the data in the database
     service_data = Service.query.all()
     if service.validate_on_submit():
@@ -1181,12 +1184,17 @@ def edit_branch(id):
         this_service.medical_active = True if service.visible.data == "True" else False
         this_service.active = True if service.active.data == "True" else False
         db.session.commit()
-
+        if this_service_dept:
+            unbind_dept_to_service(this_service.unique_id)
+            bind_service_to_dept(this_service.unique_id, service.department.data)
+        else:
+            bind_service_to_dept(this_service.unique_id, service.department.data)
         # prefilling the form with the empty fields
         service.name.data = ""
         service.teller.data = ""
         service.code.data = ""
         service.icon.data = ""
+        service.department.data = ""
         final = service_offered_schema.dump(this_service)
         this_branch = Branch.query.first()
         sio.emit("sync_edit_service", final)
@@ -1199,10 +1207,11 @@ def edit_branch(id):
         service.teller.data = this_service.teller
         service.code.data = this_service.code
         service.icon.data = this_service.icon
+        service.department.data = this_service_dept.department_id if this_service_dept else "Not Set"
     else:
         flash("Service Does Not exist. Add Service name first.", "danger")
     return render_template("edit_company.html", form=service, services=services, tellers=tellers, icons=icons,
-                           services_offered=services_offered)
+                           services_offered=services_offered, departments=departments)
 
 
 @app.route("/branch/delete/<int:id>", methods=["GET", "POST"])

@@ -525,9 +525,10 @@ def bind_service_to_dept(service_unique_id, dept_unique_id):
     return final
 
 
-def unbind_dept_to_service(service_unique_id, dept_unique_id):
+def unbind_dept_to_service(service_unique_id):
     final = False
-    bond = service_dept_bind_exists(service_unique_id, dept_unique_id)
+    bond = service_dept_bind_exists(service_unique_id)
+    log(f"BOND ... {bond}")
     if bond:
         db.session.delete(bond)
         db.session.commit()
@@ -535,9 +536,8 @@ def unbind_dept_to_service(service_unique_id, dept_unique_id):
     return final
 
 
-def service_dept_bind_exists(service_unique_id, dept_unique_id):
-    return DepartmentService.query.filter_by(department_id=dept_unique_id).filter_by(
-        service_id=service_unique_id).first()
+def service_dept_bind_exists(service_unique_id):
+    return DepartmentService.query.filter_by(service_id=service_unique_id).first()
 
 
 def service_by_name(name):
@@ -576,3 +576,8 @@ def get_ip():
     finally:
         s.close()
     return IP
+
+
+def get_service_dept(unique_id):
+    lookup = DepartmentService.query.filter_by(service_id=unique_id).first()
+    return lookup
