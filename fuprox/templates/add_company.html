@@ -141,6 +141,29 @@
           </div>
         </div>
 
+           <div class="row mb-3">
+          <div class="col-lg-12">
+            {{ form.department.label(class='form-control-label') }}
+            {% if form.department.errors %}
+            {{ form.department(class="form-control form-control-sm is-invalid", id="brns",autocomplete="off")}}
+            <div class="invalid-feedback">
+                {% for error in form.department.errors %}
+                <span>{{ error }}</span>
+                {% endfor %}
+            </div>
+            {% else %}
+                {{ form.department(class="form-control form-control-sm ", id="dpt",autocomplete="off",
+                list="department")}}
+            {% endif %}
+          <datalist id="department">
+                {% for dn in departments %}
+                    <option value="{{dn.unique_id}}">Department — {{ dn.name  }}</option>
+                {% endfor %}
+            </datalist>
+            <small class="form-text text-muted"></small>
+          </div>
+        </div>
+
           <div class="row mb-3">
           <div class="col-lg-12">
             {{ form.code.label(class='form-control-label') }}
