@@ -22,6 +22,10 @@ def midnight():
     return parser.parse("00:00")
 
 
+def unique_code() -> int:
+    return secrets.token_hex(16)
+
+
 # we are going to create the model from a user class
 # the user mixen adds certain fields that are required matain the use session
 # it will add certain fileds to the user class tha are essential to the user login
@@ -200,7 +204,7 @@ class Booking(db.Model):
 class BookingSchema(ma.Schema):
     class Meta:
         fields = ("id", "service_name", "start", "branch_id", "ticket", "active", "nxt", "serviced", "teller", \
-                  "kind", "user", "is_instant", "forwarded", "is_synced", "unique_id", "unique_teller","date_added")
+                  "kind", "user", "is_instant", "forwarded", "is_synced", "unique_id", "unique_teller", "date_added")
 
 
 class ImageCompany(db.Model):
@@ -243,10 +247,6 @@ class TellerSchema(ma.Schema):
             "id", "number", "date_added", "branch", "service", "is_synced", "unique_id", "branch_unique_id", "active")
 
 
-def ticket_unique() -> int:
-    return secrets.token_hex(16)
-
-
 # working with flask migrate
 class ServiceOffered(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -257,7 +257,7 @@ class ServiceOffered(db.Model):
     code = db.Column(db.String(length=10), nullable=False)
     icon = db.Column(db.String(length=20))
     is_synced = db.Column(db.Boolean, default=False)
-    unique_id = db.Column(db.String(255), default=ticket_unique, unique=True)
+    unique_id = db.Column(db.String(255), default=unique_code, unique=True)
     medical_active = db.Column(db.Boolean, default=False)
     active = db.Column(db.Boolean, default=True)
 
@@ -366,9 +366,8 @@ class TellerBooking(db.Model):
 class TellerBookingSchema(ma.Schema):
     class Meta:
         fields = (
-        "id", "teller_to", "booking_id", "teller_from", "remarks", "active", "date_added", "pre_req", "is_synced",
-        "preq_date_servived")
-
+            "id", "teller_to", "booking_id", "teller_from", "remarks", "active", "date_added", "pre_req", "is_synced",
+            "preq_date_servived")
 
 
 class Department(db.Model):
@@ -395,7 +394,7 @@ class DepartmentSchema(ma.Schema):
 class DepartmentService(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     department_id = db.Column(db.ForeignKey('department.unique_id'), nullable=False)
-    service_id = db.Column(db.ForeignKey("service_offered.unique_id"), nullable=False)
+    service_id = db.Column(db.ForeignKey("service_offered.unique_id"), nullable=False, unique=True)
 
     def __init__(self, department_id, service_id):
         self.department_id = department_id
@@ -405,5 +404,3 @@ class DepartmentService(db.Model):
 class DepartmentServiceSchema(ma.Schema):
     class Meta:
         fields = ("id", "department_id", "service_id")
-
-

@@ -1,14 +1,18 @@
 import smtplib, ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from fuprox.models.models import Teller, TellerSchema, Service, ServiceOffered, ServiceOfferedSchema, Branch, BranchSchema, \
-    Icon, IconSchema, Video, VideoSchema
+from fuprox.models.models import Teller, TellerSchema, ServiceOffered, ServiceOfferedSchema, Branch, BranchSchema, \
+    Icon, IconSchema, Video, VideoSchema, DepartmentService, DepartmentSchema, Department, DepartmentServiceSchema
 from fuprox import db
-from flask import jsonify, request
+from flask import jsonify, request, flash
 import sqlalchemy
 from werkzeug.utils import secure_filename
 import os
 from fuprox import app
+import re
+import secrets
+import base64
+import socket
 
 # mpesa
 
@@ -23,6 +27,15 @@ branchs_schema = BranchSchema(many=True)
 
 video_schema = VideoSchema()
 videos_schema = VideoSchema(many=True)
+
+department_service_schema = DepartmentServiceSchema()
+departments_server_schema = DepartmentServiceSchema(many=True)
+
+department_schema = DepartmentSchema()
+departments_schema = DepartmentSchema(many=True)
+
+icon_schema = IconSchema()
+icons_schema = IconSchema(many=True)
 
 import requests
 from requests.auth import HTTPBasicAuth
@@ -69,19 +82,6 @@ Reverse for the mpesa API
 
 
 def reverse(transaction_id, amount, receiver_party):
-    """
-
-    :param access_token:
-    :param initiator: This is the credential/username used to authenticate the transaction request.
-    :param security_credential: Base64 encoded string of the M-Pesa short code and password, which is encrypted using M-Pesa public key and validates the transaction on M-Pesa Core system.
-    :param transaction_id: Organization Receiving the funds.
-    :param amount:
-    :param receiver_party:
-    :param remarks: comment to be sent with the transaction
-    :param result_url:
-    :param timeout_url:
-    :return:
-    """
     api_url = "https://sandbox.safaricom.co.ke/mpesa/reversal/v1/request"
     headers = {"Authorization": "Bearer %s" % authenticate()}
     request = {"Initiator": "testapi",  # test_api
@@ -237,7 +237,7 @@ def create_service(name, teller, branch_id, code, icon_id, visible, active):
                         log(service)
                         dict_ = dict()
 
-                        # adding the ofline key so that we can have consitancy
+                        # adding the offline key so that we can have constancy
                         key = {"key": branch_data["key_"]}
                         dict_.update(key)
                         dict_.update(service_schema.dump(service))
@@ -277,7 +277,7 @@ def icon_exist_by_name(name):
 
 """
 
-ALLOWED_EXTENSIONS_ = set(["mp4", "mkv", "flv", "webm"])
+ALLOWED_EXTENSIONS_ = {"mp4", "mkv", "flv", "webm"}
 
 
 def allowed_files_(filename):
@@ -366,7 +366,7 @@ def upload():
         resp = jsonify({'message': 'No file selected for uploading'})
         resp.status_code = 400
         return resp
-    if file and allowed_file(file.filename):
+    if file and allowed_files_(file.filename):
         filename = secure_filename(file.filename)
         try:
             file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
@@ -486,3 +486,93 @@ def get_active_videos():
 
 
 """:::::END:::::"""
+
+"""Dept functions """
+
+
+def create_department(name, active):
+    final = False
+    if not get_dept_by_name(name):
+        branch = Branch.query.first()
+        lookup = Department(name, branch.unique_id)
+        lookup.active = active
+        db.session.add(lookup)
+        db.session.commit()
+        final = department_schema.dump(lookup)
+        if final:
+            msg = "Department created successfully"
+        else:
+            msg = "Error creating department"
+    return msg
+
+
+def dept_by_unique_id(unique_id):
+    return Department.query.filter_by(unique_id=unique_id).first()
+
+
+def get_dept_by_name(name):
+    return Department.query.filter_by(name=name).first()
+
+
+def bind_service_to_dept(service_unique_id, dept_unique_id):
+    final = False
+    dept = dept_by_unique_id(dept_unique_id)
+    if service_by_unique_id(service_unique_id) and dept:
+        lookup = DepartmentService(dept.unique_id, service_unique_id)
+        db.session.add(lookup)
+        db.session.commit()
+        final = department_service_schema.dump(lookup)
+    return final
+
+
+def unbind_dept_to_service(service_unique_id, dept_unique_id):
+    final = False
+    bond = service_dept_bind_exists(service_unique_id, dept_unique_id)
+    if bond:
+        db.session.delete(bond)
+        db.session.commit()
+        final = True
+    return final
+
+
+def service_dept_bind_exists(service_unique_id, dept_unique_id):
+    return DepartmentService.query.filter_by(department_id=dept_unique_id).filter_by(
+        service_id=service_unique_id).first()
+
+
+def service_by_name(name):
+    return ServiceOffered.query.filter_by(name=name).first()
+
+
+def service_by_unique_id(unique_id):
+    return ServiceOffered.query.filter_by(unique_id=unique_id).first()
+
+
+def get_all_departments():
+    exists = branch_exists()
+    final = list()
+    if exists:
+        lookup = Department.query.all()
+        final = departments_schema.dump(lookup)
+    return final
+
+
+def branch_exists():
+    branch = Branch.query.first()
+    return branch.key_ if branch else False
+
+
+'''utils'''
+
+
+def get_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        # doesn't even have to be reachable
+        s.connect(('10.255.255.255', 1))
+        IP = s.getsockname()[0]
+    except Exception:
+        IP = '127.0.0.1'
+    finally:
+        s.close()
+    return IP

@@ -2,7 +2,7 @@ import logging
 import os
 import secrets
 import time
-from datetime import timedelta,timezone,datetime
+from datetime import timedelta, timezone, datetime
 
 import requests
 import socketio
@@ -14,15 +14,16 @@ from flask_sqlalchemy import sqlalchemy
 
 from fuprox import app, db, bcrypt
 from fuprox.forms.forms import (RegisterForm, LoginForm, TellerForm, ServiceForm, SolutionForm,
-                          ActivateForm, AddUser)
-from fuprox.models.models import User, Company, Branch, Service, Help, BranchSchema, CompanySchema, ServiceSchema, Mpesa, \
+                                ActivateForm, AddUser, AddDepartment)
+from fuprox.models.models import User, Company, Branch, Service, Help, BranchSchema, CompanySchema, ServiceSchema, \
+    Mpesa, \
     MpesaSchema, Booking, BookingSchema, ImageCompanySchema, Teller, TellerSchema, ServiceOffered, Icon, \
     PhraseSchema, Phrase, ServiceOfferedSchema, VideoSchema, Video, ResetOption, ResetOptionSchema, \
     TellerBooking
-from fuprox.others.utility import email
-from fuprox.others.utility import reverse, add_teller, create_service,upload_video,get_single_video, get_all_videos, \
-    get_active_videos, toggle_status, upload_link, delete_video, save_icon_to_service,has_vowels
-import socket,timeago,pytz
+from fuprox.others.utility import email, get_all_departments, get_ip, create_department, bind_service_to_dept
+from fuprox.others.utility import reverse, add_teller, create_service, upload_video, get_single_video, get_all_videos, \
+    get_active_videos, toggle_status, upload_link, delete_video, save_icon_to_service, has_vowels
+import socket, timeago, pytz
 
 teller_schema = TellerSchema()
 tellers_schema = TellerSchema(many=True)
@@ -58,6 +59,7 @@ videos_schema = VideoSchema(many=True)
 phrase_schema = PhraseSchema()
 reset_option_schema = ResetOptionSchema()
 
+
 def get_part_of_day(hour):
     return (
         "morning" if 5 <= hour <= 11
@@ -89,14 +91,11 @@ def home():
     tellers = len(Teller.query.all())
     service_offered = len(ServiceOffered.query.all())
     videos = len(videos_schema.dump(Video.query.all()))
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    s.connect(("8.8.8.8", 80))
-    server_address = (s.getsockname()[0])
-    s.close()
-    
+    server_address = get_ip()
+
     types = {"links": 0, "files": 0}
     if videos:
-        videos_ =Video.query.all()
+        videos_ = Video.query.all()
         for video in videos_:
             if video.type == 1:
                 types["files"] = types["files"] + 1
@@ -113,12 +112,13 @@ def home():
         "No Services",
         "statement": get_part_of_day(time).capitalize(),
         "user": (current_user.username).capitalize(),
-        "video": f"{videos} {'Video' if videos <= 1 else 'Videos — '+links +' • '+ files}" if videos else "No Videos",
-"server_address" : server_address
+        "video": f"{videos} {'Video' if videos <= 1 else 'Videos — ' + links + ' • ' + files}" if videos else "No Videos",
+        "server_address": server_address
     }
     branch = Branch.query.first()
     log(dash_data)
-    return render_template("dashboard.html", today=date, dash_data=dash_data, branch=branch,server_address=server_address)
+    return render_template("dashboard.html", today=date, dash_data=dash_data, branch=branch,
+                           server_address=server_address)
 
 
 @app.route("/doughnut/data", methods=["GET"])
@@ -257,7 +257,7 @@ def all_bookings():
             booking["start"] = service.code
             for lookup in lookups:
                 if booking["unique_id"] == lookup.unique_id:
-                    booking["date_term"] = timeago.format(lookup.date_added,datetime.now())
+                    booking["date_term"] = timeago.format(lookup.date_added, datetime.now())
         bookings.append(booking)
     return jsonify(bookings)
 
@@ -278,7 +278,7 @@ def search__():
             booking["start"] = service.code
             for lookup in lookups:
                 if booking["unique_id"] == lookup.unique_id:
-                    booking["date_term"] = timeago.format(lookup.date_added,datetime.now())
+                    booking["date_term"] = timeago.format(lookup.date_added, datetime.now())
             final.append(booking)
     return jsonify(final)
 
@@ -649,15 +649,18 @@ def add_company():
     icons = Icon.query.all()
     branch = Branch.query.first()
     services_offered = ServiceOffered.query.all()
+    departments = get_all_departments()
+    print(departments)
     if request.method == "POST":
         if service.validate_on_submit():
             code = service.code.data
-            if has_vowels(code) and len(code):
+            if has_vowels(code) and len(code) and len(code) == 3:
                 name = service.name.data
                 teller = service.teller.data
                 branch_id = branch.id
                 code = service.code.data
                 icon = service.icon.data
+                dept = service.department.data
                 visible = True if service.visible.data == "True" else False
                 active = True if service.active.data == "True" else False
                 # service emit service made
@@ -665,6 +668,8 @@ def add_company():
                 if final:
                     try:
                         key = final["key"]
+                        log(f"SERVICE CREATED .... {final}")
+                        bind_service_to_dept(final["unique_id"], dept)
                         flash("Service Added Successfully", "success")
                         sio.emit("sync_service", final)
                         local.emit("update_services", final)
@@ -672,11 +677,44 @@ def add_company():
                     except KeyError:
                         flash(final['msg'], "danger")
             else:
-                flash("Service code may not contain vowels and must be two characters.", "warning")
+                flash("Service code may not contain vowels and must be of three characters.", "warning")
         else:
-            flash("Make sure all data is correct", "error")
+            flash("Make sure all data is correct", "danger")
     return render_template("add_company.html", form=service, companies=service_data, tellers=tellers, icons=icons,
-                           services_offered=services_offered)
+                           services_offered=services_offered, departments=departments)
+
+
+@app.route("/department", methods=["POST", "GET"])
+@login_required
+def add_department():
+    service_data = Service.query.all()
+    # init the form
+    form = AddDepartment()
+    tellers = Teller.query.all()
+    icons = Icon.query.all()
+    branch = Branch.query.first()
+    departments = get_all_departments()
+    if request.method == "POST":
+        if form.validate_on_submit():
+            name = form.name.data
+            active = True if form.active.data == "True" else False
+            final = create_department(name, active)
+            if final:
+                try:
+                    # key = final["key"]
+                    flash("Department Added Successfully", "success")
+                    """ here we are going to need to update departments"""
+                    # sio.emit("sync_service", final)
+                    # local.emit("update_services", final)
+
+                    return redirect(url_for("add_department"))
+                except KeyError:
+                    flash(final['msg'], "danger")
+            else:
+                flash("Service code may not contain vowels and must be of three characters.", "warning")
+        else:
+            flash("Make sure all data is correct", "danger")
+    return render_template("add_department.html", form=form, departments=departments)
 
 
 @app.route("/services/view")
@@ -1270,8 +1308,6 @@ def disconnect():
     log('online disconnected from server')
 
 
-
-
 @local.event
 def connect():
     log('offline connection established')
@@ -1280,6 +1316,7 @@ def connect():
 @local.event
 def disconnect():
     print('offline disconnected from server')
+
 
 try:
     sio.connect(socket_link)

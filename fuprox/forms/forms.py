@@ -87,6 +87,7 @@ class ServiceForm(FlaskForm):
     name = StringField("Service Name", validators=[DataRequired()])
     teller = StringField("Teller Number", validators=[DataRequired()])
     code = StringField("Initials", validators=[DataRequired()])
+    department = StringField("Department", validators=[DataRequired()])
     icon = StringField('Service Icon', validators=[DataRequired()])
     visible = RadioField('Available Online', choices=[('True', 'Yes'), ('False', 'No')])
     active = RadioField('Active For booking', choices=[('True', 'Yes'), ('False', 'No')])
@@ -174,3 +175,10 @@ class AddUser(FlaskForm):
         email = User.query.filter_by(email=email.data).first()
         if email:
             raise ValidationError("Email Already Taken. Please Choose Another One")
+
+
+class AddDepartment(FlaskForm):
+    name = StringField("Name", validators=[DataRequired()])
+    active = RadioField('Should the department be active?', choices=[('True', 'Yes'), ('False', 'No')])
+    submit = SubmitField("Add Department")
+
