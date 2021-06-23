@@ -3,7 +3,7 @@ from flask_wtf.file import FileField, FileAllowed
 from flask_login import current_user
 from wtforms import StringField, PasswordField, SubmitField, BooleanField, TextAreaField, RadioField, SelectField
 from wtforms.validators import DataRequired, Length, Email, EqualTo, InputRequired, ValidationError
-from fuprox.models import User
+from fuprox.models.models import User
 from flask import flash
 
 

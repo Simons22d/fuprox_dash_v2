@@ -13,14 +13,14 @@ from flask_login import login_user, logout_user, login_required, current_user
 from flask_sqlalchemy import sqlalchemy
 
 from fuprox import app, db, bcrypt
-from fuprox.forms import (RegisterForm, LoginForm, TellerForm, ServiceForm, SolutionForm,
+from fuprox.forms.forms import (RegisterForm, LoginForm, TellerForm, ServiceForm, SolutionForm,
                           ActivateForm, AddUser)
-from fuprox.models import User, Company, Branch, Service, Help, BranchSchema, CompanySchema, ServiceSchema, Mpesa, \
+from fuprox.models.models import User, Company, Branch, Service, Help, BranchSchema, CompanySchema, ServiceSchema, Mpesa, \
     MpesaSchema, Booking, BookingSchema, ImageCompanySchema, Teller, TellerSchema, ServiceOffered, Icon, \
     PhraseSchema, Phrase, ServiceOfferedSchema, VideoSchema, Video, ResetOption, ResetOptionSchema, \
     TellerBooking
-from fuprox.utility import email
-from fuprox.utility import reverse, add_teller, create_service,upload_video,get_single_video, get_all_videos, \
+from fuprox.others.utility import email
+from fuprox.others.utility import reverse, add_teller, create_service,upload_video,get_single_video, get_all_videos, \
     get_active_videos, toggle_status, upload_link, delete_video, save_icon_to_service,has_vowels
 import socket,timeago,pytz
 
